@@ -33,6 +33,7 @@ small{color:#83776f;line-height:1.5}
 .primary{width:100%;padding:15px;margin-top:12px;font-size:16px}
 .secondary{width:100%;margin-top:9px}
 .status{min-height:20px;margin:10px 0 0;font-size:13px;line-height:1.45;color:#796d65;text-align:center}.status.error{color:#a91519}.status.success{color:#287447}
+.save-link{display:none;display:block;text-align:center;margin:12px 0 0;padding:13px 14px;border-radius:12px;background:#287447;color:#fff;text-decoration:none;font-weight:700}.save-link[hidden]{display:none}
 footer{text-align:center;color:#8b7d73;font-size:12px;margin-top:24px}
 @media(max-width:760px){main{padding:14px 12px 30px}.layout{grid-template-columns:1fr}.controls{order:1}.preview-card{order:2}.preview-wrap{padding:7px}.preview-card{padding:10px}}
 </style>
@@ -75,6 +76,7 @@ footer{text-align:center;color:#8b7d73;font-size:12px;margin-top:24px}
 <button class="primary" id="downloadBtn">Download Twibbon PNG</button>
 <button class="secondary" id="resetBtn">Reset posisi foto</button>
 <p class="status" id="status" role="status" aria-live="polite"></p>
+<a class="save-link" id="saveLink" href="#" target="_blank" rel="noopener" hidden>Buka gambar untuk disimpan</a>
 </section>
 </div>
 <footer>© 開校祭73 ・ インドネシア展示</footer>
@@ -94,6 +96,7 @@ const portraitBtn = document.getElementById('portraitBtn');
 const landscapeBtn = document.getElementById('landscapeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
 const statusEl = document.getElementById('status');
+const saveLink = document.getElementById('saveLink');
 
 let orientation = 'portrait';
 let frame = new Image();
@@ -118,7 +121,7 @@ const copy = {
   title:'Buat Twibbon Kamu',photo:'Pilih foto',
   hint:'Geser foto pada preview untuk mengatur posisinya. Gunakan slider untuk zoom.',
   privacy:'Foto diproses di perangkatmu. File foto tidak dikirim ke server.',
-  download:'Download Twibbon PNG',reset:'Reset posisi foto',
+  download:'Download Twibbon PNG',save:'Buka gambar untuk disimpan',reset:'Reset posisi foto',
   noPhoto:'Pilih foto terlebih dahulu.', photoError:'Foto tidak dapat dibuka. Coba pilih file gambar lain.',
   frameError:'Bingkai gagal dimuat. Muat ulang halaman dan coba lagi.',
   exporting:'Menyiapkan PNG…', exportError:'PNG gagal dibuat. Coba lagi atau pilih foto yang lebih kecil.',
@@ -129,7 +132,7 @@ const copy = {
   title:'ツイボンを作成しよう',photo:'写真を選択',
   hint:'プレビュー上で写真をドラッグして位置を調整できます。スライダーで拡大・縮小できます。',
   privacy:'写真はお使いの端末内で処理され、サーバーには送信されません。',
-  download:'ツイボンをPNGでダウンロード',reset:'写真の位置をリセット',
+  download:'ツイボンをPNGでダウンロード',save:'画像を開いて保存',reset:'写真の位置をリセット',
   noPhoto:'先に写真を選択してください。',photoError:'写真を読み込めません。別の画像を選択してください。',
   frameError:'フレームを読み込めません。ページを再読み込みしてください。',
   exporting:'PNGを作成しています…',exportError:'PNGを作成できませんでした。もう一度お試しください。',
@@ -274,19 +277,12 @@ canvas.addEventListener('lostpointercapture', pointerUp);
 function downloadBlob(blob, filename) {
  if (exportObjectURL) URL.revokeObjectURL(exportObjectURL);
  exportObjectURL = URL.createObjectURL(blob);
- const link = document.createElement('a');
- link.href = exportObjectURL;
- link.download = filename;
- link.style.display = 'none';
- document.body.appendChild(link);
- link.click();
- link.remove();
- // Delayed cleanup gives Safari/iOS time to begin handling the download.
- const urlToRelease = exportObjectURL;
- window.setTimeout(() => {
-  URL.revokeObjectURL(urlToRelease);
-  if (exportObjectURL === urlToRelease) exportObjectURL = null;
- }, 60000);
+ // Do not auto-click a temporary download link: iOS Safari can block it
+ // because canvas.toBlob completes after the original tap gesture.
+ saveLink.href = exportObjectURL;
+ saveLink.download = filename;
+ saveLink.textContent = copy[lang].save;
+ saveLink.hidden = false;
 }
 
 downloadBtn.addEventListener('click', () => {
@@ -303,6 +299,7 @@ downloadBtn.addEventListener('click', () => {
   return;
  }
  downloadBtn.disabled = true;
+ saveLink.hidden = true;
  message('exporting');
  try {
   canvas.toBlob((blob) => {
