@@ -101,7 +101,6 @@ const saveLink = document.getElementById('saveLink');
 let orientation = 'portrait';
 let frame = new Image();
 let frameLoaded = false;
-let frameLoadToken = 0;
 let photo = new Image();
 let photoLoaded = false;
 let photoObjectURL = null;
@@ -121,7 +120,7 @@ const copy = {
   subtitle:'Indonesia — Island of Paradise. Buat Twibbon-mu, atur posisi foto, lalu unduh hasilnya!',
   title:'Buat Twibbon Kamu',photo:'Pilih foto',
   hint:'Geser foto pada preview untuk mengatur posisinya. Gunakan slider untuk zoom.',
-  privacy:'Foto diproses di perangkatmu. File foto tidak dikirim ke server. Gunakan browser versi terbaru.',
+  privacy:'Foto diproses di perangkatmu. File foto tidak dikirim ke server.',
   download:'Download Twibbon PNG',save:'Buka gambar untuk disimpan',reset:'Reset posisi foto',
   noPhoto:'Pilih foto terlebih dahulu.', photoError:'Foto tidak dapat dibuka. Coba pilih file gambar lain.',
   frameError:'Bingkai gagal dimuat. Muat ulang halaman dan coba lagi.',
@@ -132,7 +131,7 @@ const copy = {
   subtitle:'写真を選び、位置とサイズを調整して、完成したツイボンをダウンロードしてください。',
   title:'ツイボンを作成しよう',photo:'写真を選択',
   hint:'プレビュー上で写真をドラッグして位置を調整できます。スライダーで拡大・縮小できます。',
-  privacy:'写真はお使いの端末内で処理され、サーバーには送信されません。最新版のブラウザをご利用ください。',
+  privacy:'写真はお使いの端末内で処理され、サーバーには送信されません。',
   download:'ツイボンをPNGでダウンロード',save:'画像を開いて保存',reset:'写真の位置をリセット',
   noPhoto:'先に写真を選択してください。',photoError:'写真を読み込めません。別の画像を選択してください。',
   frameError:'フレームを読み込めません。ページを再読み込みしてください。',
@@ -159,10 +158,8 @@ function releasePhotoURL() {
 
 function setFrame() {
  frameLoaded = false;
- const token = ++frameLoadToken;
  const nextFrame = new Image();
  nextFrame.onload = () => {
-  if (token !== frameLoadToken) return;
   frame = nextFrame;
   frameLoaded = true;
   canvas.width = frame.naturalWidth;
@@ -171,7 +168,6 @@ function setFrame() {
   message('');
  };
  nextFrame.onerror = () => {
-  if (token !== frameLoadToken) return;
   frameLoaded = false;
   message('frameError', 'error');
  };
@@ -200,28 +196,14 @@ landscapeBtn.addEventListener('click', () => { orientation = 'landscape'; setFra
 photoInput.addEventListener('change', (event) => {
  const file = event.target.files && event.target.files[0];
  if (!file) return;
-
- // Invalidate any older in-flight image load immediately.
+ if (!file.type || !file.type.startsWith('image/')) {
+  message('photoError', 'error');
+  photoInput.value = '';
+  return;
+ }
  const token = ++loadToken;
- if (pendingPhotoURL) {
-  URL.revokeObjectURL(pendingPhotoURL);
-  pendingPhotoURL = null;
- }
- if (file.type && !file.type.startsWith('image/')) {
-  message('photoError', 'error');
-  photoInput.value = '';
-  return;
- }
-
- let url;
- try {
-  url = URL.createObjectURL(file);
- } catch (error) {
-  console.error('Could not read selected image:', error);
-  message('photoError', 'error');
-  photoInput.value = '';
-  return;
- }
+ if (pendingPhotoURL) URL.revokeObjectURL(pendingPhotoURL);
+ const url = URL.createObjectURL(file);
  pendingPhotoURL = url;
  const img = new Image();
  img.onload = () => {
