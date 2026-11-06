@@ -34,6 +34,10 @@ small{color:#83776f;line-height:1.5}
 .secondary{width:100%;margin-top:9px}
 .status{min-height:20px;margin:10px 0 0;font-size:13px;line-height:1.45;color:#796d65;text-align:center}.status.error{color:#a91519}.status.success{color:#287447}
 .save-link{display:none;display:block;text-align:center;margin:12px 0 0;padding:13px 14px;border-radius:12px;background:#287447;color:#fff;text-decoration:none;font-weight:700}.save-link[hidden]{display:none}
+.whatsapp{width:100%;margin-top:9px;background:#25D366;border-color:#25D366;color:#10351f}
+.whatsapp:disabled{opacity:.6;cursor:wait}
+.whatsapp-direct{width:100%;margin-top:8px;border-color:#25D366;color:#167b3e}
+.wa-link{display:block;text-align:center;margin:10px 0 0;color:#168545;font-size:13px;font-weight:700;text-decoration:underline}.wa-link[hidden]{display:none}
 footer{text-align:center;color:#8b7d73;font-size:12px;margin-top:24px}
 @media(max-width:760px){main{padding:14px 12px 30px}.layout{grid-template-columns:1fr}.controls{order:1}.preview-card{order:2}.preview-wrap{padding:7px}.preview-card{padding:10px}}
 </style>
@@ -74,9 +78,12 @@ footer{text-align:center;color:#8b7d73;font-size:12px;margin-top:24px}
 <small id="privacy">Foto diproses di perangkatmu. File foto tidak dikirim ke server.</small>
 </div>
 <button class="primary" id="downloadBtn">Download Twibbon PNG</button>
+<button class="whatsapp" id="whatsappBtn" type="button">Bagikan gambar (pilih WhatsApp)</button>
+<button class="whatsapp-direct" id="whatsappDirectBtn" type="button">Buka WhatsApp langsung</button>
 <button class="secondary" id="resetBtn">Reset posisi foto</button>
 <p class="status" id="status" role="status" aria-live="polite"></p>
 <a class="save-link" id="saveLink" href="#" target="_blank" rel="noopener" hidden>Buka gambar untuk disimpan</a>
+<a class="wa-link" id="waDirectLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Buka WhatsApp secara langsung</a>
 </section>
 </div>
 <footer>© 開校祭73 ・ インドネシア展示</footer>
@@ -95,6 +102,9 @@ const zoomValue = document.getElementById('zoomValue');
 const portraitBtn = document.getElementById('portraitBtn');
 const landscapeBtn = document.getElementById('landscapeBtn');
 const downloadBtn = document.getElementById('downloadBtn');
+const whatsappBtn = document.getElementById('whatsappBtn');
+const whatsappDirectBtn = document.getElementById('whatsappDirectBtn');
+const waDirectLink = document.getElementById('waDirectLink');
 const statusEl = document.getElementById('status');
 const saveLink = document.getElementById('saveLink');
 
@@ -106,6 +116,10 @@ let photoLoaded = false;
 let photoObjectURL = null;
 let pendingPhotoURL = null;
 let exportObjectURL = null;
+let shareBlob = null;
+let shareBlobVersion = -1;
+let renderVersion = 0;
+let sharePrepTimer = null;
 let loadToken = 0;
 let zoom = 1;
 let offsetX = 0;
@@ -121,7 +135,8 @@ const copy = {
   title:'Buat Twibbon Kamu',photo:'Pilih foto',
   hint:'Geser foto pada preview untuk mengatur posisinya. Gunakan slider untuk zoom.',
   privacy:'Foto diproses di perangkatmu. File foto tidak dikirim ke server.',
-  download:'Download Twibbon PNG',save:'Buka gambar untuk disimpan',reset:'Reset posisi foto',
+  download:'Download Twibbon PNG',share:'Bagikan gambar (pilih WhatsApp)',directShare:'Buka WhatsApp langsung',save:'Buka gambar untuk disimpan',attach:'Simpan PNG untuk dilampirkan di WhatsApp',reset:'Reset posisi foto',
+  sharePreparing:'Menyiapkan gambar untuk dibagikan…',shareReady:'PNG siap. Tekan tombol WhatsApp sekali lagi untuk membuka menu berbagi, lalu pilih WhatsApp.',shareDone:'Menu berbagi terbuka. Pilih WhatsApp untuk mengirim gambar.',shareCanceled:'Berbagi dibatalkan.',shareError:'Gambar gagal disiapkan untuk dibagikan. Coba lagi.',waOpened:'WhatsApp sedang dibuka. Siapkan gambar untuk dilampirkan…',waFallbackReady:'WhatsApp sudah dibuka. Simpan gambar melalui tautan di bawah, lalu lampirkan di chat.',waOpenLink:'Jika WhatsApp belum terbuka, ketuk di sini.',
   noPhoto:'Pilih foto terlebih dahulu.', photoError:'Foto tidak dapat dibuka. Coba pilih file gambar lain.',
   frameError:'Bingkai gagal dimuat. Muat ulang halaman dan coba lagi.',
   exporting:'Menyiapkan PNG…', exportError:'PNG gagal dibuat. Coba lagi atau pilih foto yang lebih kecil.',
@@ -132,7 +147,8 @@ const copy = {
   title:'ツイボンを作成しよう',photo:'写真を選択',
   hint:'プレビュー上で写真をドラッグして位置を調整できます。スライダーで拡大・縮小できます。',
   privacy:'写真はお使いの端末内で処理され、サーバーには送信されません。',
-  download:'ツイボンをPNGでダウンロード',save:'画像を開いて保存',reset:'写真の位置をリセット',
+  download:'ツイボンをPNGでダウンロード',share:'画像を共有（WhatsAppを選択）',directShare:'WhatsAppを直接開く',save:'画像を開いて保存',attach:'WhatsAppに添付する画像を保存',reset:'写真の位置をリセット',
+  sharePreparing:'共有用の画像を準備しています…',shareReady:'PNGの準備ができました。もう一度ボタンを押して共有メニューからWhatsAppを選択してください。',shareDone:'共有メニューが開きました。WhatsAppを選択してください。',shareCanceled:'共有をキャンセルしました。',shareError:'画像を共有できませんでした。もう一度お試しください。',waOpened:'WhatsAppを開いています。添付する画像を準備しています…',waFallbackReady:'WhatsAppを開きました。下のリンクから画像を保存し、チャットに添付してください。',waOpenLink:'WhatsAppが開かない場合はこちらをタップしてください。',
   noPhoto:'先に写真を選択してください。',photoError:'写真を読み込めません。別の画像を選択してください。',
   frameError:'フレームを読み込めません。ページを再読み込みしてください。',
   exporting:'PNGを作成しています…',exportError:'PNGを作成できませんでした。もう一度お試しください。',
@@ -176,6 +192,56 @@ function setFrame() {
  landscapeBtn.classList.toggle('active', orientation === 'landscape');
 }
 
+function scheduleSharePreparation() {
+ renderVersion += 1;
+ const version = renderVersion;
+ shareBlob = null;
+ shareBlobVersion = -1;
+ if (sharePrepTimer) clearTimeout(sharePrepTimer);
+ if (!photoLoaded || !frameLoaded || typeof canvas.toBlob !== 'function') return;
+ sharePrepTimer = setTimeout(() => {
+  try {
+   canvas.toBlob((blob) => {
+    if (version !== renderVersion) return;
+    if (blob && blob.size > 0) {
+     shareBlob = blob;
+     shareBlobVersion = version;
+    }
+   }, 'image/png');
+  } catch (error) {
+   console.warn('Share image preparation failed:', error);
+  }
+ }, 450);
+}
+
+function prepareShareBlob(callback) {
+ const version = renderVersion;
+ if (shareBlob && shareBlobVersion === version) { callback(shareBlob); return; }
+ if (sharePrepTimer) { clearTimeout(sharePrepTimer); sharePrepTimer = null; }
+ if (typeof canvas.toBlob !== 'function') { callback(null); return; }
+ try {
+  canvas.toBlob((blob) => {
+   if (version !== renderVersion) { callback(null); return; }
+   if (blob && blob.size > 0) {
+    shareBlob = blob;
+    shareBlobVersion = version;
+    callback(blob);
+   } else {
+    callback(null);
+   }
+  }, 'image/png');
+ } catch (error) {
+  console.error('Share PNG export failed:', error);
+  callback(null);
+ }
+}
+
+function currentFilename() {
+ return orientation === 'portrait'
+  ? 'kaikousai73-twibbon-portrait.png'
+  : 'kaikousai73-twibbon-landscape.png';
+}
+
 function draw() {
  if (!frameLoaded || !frame.naturalWidth) return;
  ctx.clearRect(0, 0, canvas.width, canvas.height);
@@ -188,6 +254,7 @@ function draw() {
   ctx.drawImage(photo, x, y, w, h);
  }
  ctx.drawImage(frame, 0, 0, canvas.width, canvas.height);
+ scheduleSharePreparation();
 }
 
 portraitBtn.addEventListener('click', () => { orientation = 'portrait'; setFrame(); });
@@ -274,14 +341,13 @@ canvas.addEventListener('pointerup', pointerUp);
 canvas.addEventListener('pointercancel', pointerUp);
 canvas.addEventListener('lostpointercapture', pointerUp);
 
-function downloadBlob(blob, filename) {
+function downloadBlob(blob, filename, label = copy[lang].save) {
  if (exportObjectURL) URL.revokeObjectURL(exportObjectURL);
  exportObjectURL = URL.createObjectURL(blob);
- // Do not auto-click a temporary download link: iOS Safari can block it
- // because canvas.toBlob completes after the original tap gesture.
+ // Keep this as a user-tapped link: iOS Safari may block a delayed auto-download.
  saveLink.href = exportObjectURL;
  saveLink.download = filename;
- saveLink.textContent = copy[lang].save;
+ saveLink.textContent = label;
  saveLink.hidden = false;
 }
 
@@ -326,6 +392,111 @@ downloadBtn.addEventListener('click', () => {
  }
 });
 
+function openWhatsAppFallback() {
+ const text = 'Halo! Saya ingin membagikan Twibbon Kaikousai 73. Saya akan melampirkan gambar Twibbon ini.';
+ const whatsappURL = 'https://wa.me/?text=' + encodeURIComponent(text);
+ waDirectLink.href = whatsappURL;
+ waDirectLink.textContent = copy[lang].waOpenLink;
+ waDirectLink.hidden = false;
+ // This URL opens the WhatsApp app on many phones, or WhatsApp Web on desktop.
+ // A web page cannot attach a local canvas file through a wa.me link, so the
+ // PNG is provided separately for the user to attach in the chat.
+ try {
+  const opened = window.open(whatsappURL, '_blank');
+  if (opened) opened.opener = null;
+ } catch (error) {
+  console.warn('Could not open WhatsApp automatically:', error);
+ }
+ message('waOpened');
+ prepareShareBlob((blob) => {
+  if (!blob) {
+   message('shareError', 'error');
+   return;
+  }
+  downloadBlob(blob, currentFilename(), copy[lang].attach);
+  message('waFallbackReady', 'success');
+ });
+}
+
+whatsappBtn.addEventListener('click', () => {
+ if (!photoLoaded) {
+  message('noPhoto', 'error');
+  return;
+ }
+ if (!frameLoaded) {
+  message('frameError', 'error');
+  return;
+ }
+
+ // File sharing uses the operating-system share sheet. The user selects
+ // WhatsApp there; browsers do not expose a portable API to force one target app.
+ const supportsFileShare = typeof navigator.share === 'function' &&
+  typeof navigator.canShare === 'function';
+
+ if (supportsFileShare) {
+  const filename = currentFilename();
+  if (!shareBlob || shareBlobVersion !== renderVersion) {
+   whatsappBtn.disabled = true;
+   message('sharePreparing');
+   prepareShareBlob((blob) => {
+    whatsappBtn.disabled = false;
+    if (blob) {
+     message('shareReady', 'success');
+    } else {
+     message('shareError', 'error');
+    }
+   });
+   return;
+  }
+
+  try {
+   const file = new File([shareBlob], filename, { type: 'image/png' });
+   if (navigator.canShare({ files: [file] })) {
+    // Call share() directly in the click event to preserve user activation.
+    const sharePromise = navigator.share({
+     files: [file],
+     title: 'Twibbon Kaikousai 73',
+     text: 'Twibbon Kaikousai 73 — Indonesia: Island of Paradise'
+    });
+    sharePromise.then(() => {
+     message('shareDone', 'success');
+    }).catch((error) => {
+     if (error && error.name === 'AbortError') {
+      message('shareCanceled');
+     } else {
+      console.error('Native file sharing failed:', error);
+      message('shareError', 'error');
+      waDirectLink.href = 'https://wa.me/?text=' + encodeURIComponent('Halo! Ini Twibbon Kaikousai 73.');
+      waDirectLink.textContent = copy[lang].waOpenLink;
+      waDirectLink.hidden = false;
+      downloadBlob(shareBlob, currentFilename(), copy[lang].attach);
+     }
+    });
+    return;
+   }
+  } catch (error) {
+   console.error('Native sharing is unavailable:', error);
+  }
+ }
+
+ // Fallback: open WhatsApp directly with a prepared caption, then offer the
+ // PNG as a separate save/download link so it can be attached manually.
+ openWhatsAppFallback();
+});
+
+whatsappDirectBtn.addEventListener('click', () => {
+ if (!photoLoaded) {
+  message('noPhoto', 'error');
+  return;
+ }
+ if (!frameLoaded) {
+  message('frameError', 'error');
+  return;
+ }
+ // Opens WhatsApp (or WhatsApp Web) directly; attach the PNG from the save link.
+ openWhatsAppFallback();
+});
+
 document.getElementById('resetBtn').addEventListener('click', () => {
  zoom = 1;
  offsetX = 0;
@@ -344,11 +515,17 @@ document.getElementById('langBtn').addEventListener('click', () => {
  document.getElementById('dragHint').textContent = c.hint;
  document.getElementById('privacy').textContent = c.privacy;
  downloadBtn.textContent = c.download;
+ whatsappBtn.textContent = c.share;
+ whatsappDirectBtn.textContent = c.directShare;
  document.getElementById('resetBtn').textContent = c.reset;
+ if (!waDirectLink.hidden) waDirectLink.textContent = c.waOpenLink;
+ if (!saveLink.hidden && saveLink.textContent.includes('WhatsApp')) saveLink.textContent = c.attach;
  message('');
 });
 
 window.addEventListener('pagehide', () => {
+ if (sharePrepTimer) clearTimeout(sharePrepTimer);
+ shareBlob = null;
  releasePhotoURL();
  if (exportObjectURL) {
   URL.revokeObjectURL(exportObjectURL);
